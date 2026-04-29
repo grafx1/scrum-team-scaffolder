@@ -1,0 +1,128 @@
+# Exemple de stack : SaaS EdTech Sénégal
+#
+# Ce YAML décrit la stack qui, passée au scrum-team-scaffolder sur un dossier vide,
+# régénère le bundle `templates/reference/`. Il sert de :
+#   1. Test de régression pour le scaffolder (le bundle généré doit ressembler à la référence)
+#   2. Exemple documenté pour démarrer une stack similaire
+#   3. Point de comparaison pour illustrer comment adapter à d'autres marchés
+
+project:
+  name: edtech-senegal
+  pitch: |
+    Plateforme de gestion scolaire SaaS pour les écoles privées au Sénégal.
+    Multi-tenant, offline-first, intègre les moyens de paiement mobile locaux (Wave, Orange Money)
+    et les canaux de communication privilégiés des parents (SMS via Africa's Talking, WhatsApp Business).
+
+backend:
+  language: typescript
+  framework: nestjs
+  package-manager: pnpm
+
+db:
+  engine: postgres
+  version: "15"
+  orm: drizzle
+  extensions:
+    - pgcrypto
+    - pg_trgm
+
+tenant-strategy: single-db-rls
+
+auth:
+  provider: keycloak
+  version: "24"
+  multi-tenant-model: organizations
+  token-type: jwt-rs256
+  notes: |
+    Realm unique `schoolapp`. Une école = une Keycloak Organization.
+    5 rôles : super_admin, director, teacher, parent, student.
+
+queue:
+  system: bull
+  broker: redis
+  notes: |
+    Redis managé (Upstash ou Railway Redis add-on).
+    Rate limiters par queue selon les contraintes des vendors (AT 500/min, WhatsApp 80/s).
+
+storage:
+  service: cloudflare-r2
+  region: auto  # Cloudflare gère automatiquement, préférence EU pour conformité mineurs
+  notes: |
+    Bucket EU pour conformité RGPD mineurs.
+    Préfixe `schoolId/` dans chaque clé d'objet.
+    Signed URLs courtes (15 min) pour les bulletins PDF, photos élèves.
+
+frontend-web:
+  framework: nextjs-14
+  styling: tailwind
+  components: shadcn-ui
+  state: tanstack-query
+  forms: react-hook-form
+  i18n: next-intl
+  offline: dexie  # PWA installable
+  api-contract: openapi
+
+frontend-mobile:
+  framework: expo
+  offline-db: expo-sqlite
+  forms: react-hook-form
+  notes: |
+    Expo Router file-based.
+    Background sync via expo-background-fetch quand le réseau revient.
+    Permissions push notifications.
+
+integrations:
+  hub-name: senegal-integrations
+  vendors:
+    - vendor: wave
+      purpose: paiements mobiles principaux (dominant au Sénégal)
+      auth-type: api-key
+      webhook-signed: true
+    - vendor: orange-money
+      purpose: paiements mobiles secondaires
+      auth-type: oauth-client-credentials
+      webhook-signed: false  # re-validation aller-retour obligatoire
+    - vendor: africas-talking
+      purpose: SMS + USSD pour les parents
+      auth-type: api-key
+      webhook-signed: false  # IP whitelist recommandée
+    - vendor: whatsapp-business-cloud
+      purpose: messaging parents (WhatsApp très majoritaire au SN)
+      auth-type: bearer-system-user-token
+      webhook-signed: true  # X-Hub-Signature-256
+    - vendor: resend
+      purpose: emails transactionnels (bulletins, reçus, rappels)
+      auth-type: api-key
+      webhook-signed: true  # plan Pro via svix, plan Free sans
+
+testing:
+  backend-unit: jest
+  backend-e2e: supertest  # vraie Postgres en CI via Testcontainers ou service Docker
+  frontend: vitest+rtl
+  mobile: jest+rntl
+
+deploy:
+  backend: railway  # ou fly.io
+  frontend-web: vercel
+  frontend-mobile: eas-build
+  ci: github-actions
+  env-region: eu-west  # pour conformité RGPD mineurs
+
+monorepo:
+  type: pnpm-workspaces
+  packages:
+    - apps/api           # backend NestJS
+    - apps/web           # Next.js 14
+    - apps/mobile        # Expo
+    - packages/api-contract  # schémas zod partagés générés depuis Drizzle
+    - packages/types     # types TS partagés
+    - packages/i18n      # clés FR (langue par défaut)
+    - packages/ui-mobile # composants RN partagés
+
+compliance:
+  market: sn  # Sénégal
+  rgpd: true  # utilisateurs EU potentiels + protection des mineurs
+  data-residency: eu  # stockage des PDFs, photos
+  notes: |
+    Protection des mineurs : stockage R2 EU, pas de tracking publicitaire,
+    consentement parental explicite pour les photos d'élèves.

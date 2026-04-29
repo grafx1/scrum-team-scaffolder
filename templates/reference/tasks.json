@@ -1,0 +1,74 @@
+{
+  "project": "EdTech Sénégal - MVP",
+  "tasks": [
+    {
+      "id": "T001",
+      "title": "Setup monorepo pnpm + workspaces",
+      "description": "Créer la structure apps/api, apps/web, apps/mobile, packages/types, packages/api-contract avec pnpm workspaces + tsconfig partagé.",
+      "phase": "Phase 0: Fondations",
+      "priority": "P0 - Critical",
+      "category": "infrastructure",
+      "estimated_days": 1,
+      "dependencies": [],
+      "acceptance_criteria": [
+        "pnpm install fonctionne à la racine",
+        "Les 3 apps sont détectées par pnpm -r",
+        "tsconfig.base.json partagé par tous les workspaces"
+      ],
+      "tags": ["setup", "monorepo"],
+      "status": "todo"
+    },
+    {
+      "id": "T002",
+      "title": "Schéma Drizzle initial (schools, users, students) avec RLS",
+      "description": "Modéliser les entités de base du multi-tenant dans apps/api/src/db/schema/ avec schoolId, pgPolicy tenant_isolation et .enableRLS() sur chaque table tenant.",
+      "phase": "Phase 0: Fondations",
+      "priority": "P0 - Critical",
+      "category": "architecture",
+      "estimated_days": 2,
+      "dependencies": ["T001"],
+      "acceptance_criteria": [
+        "apps/api/src/db/schema/{schools,users,students}.ts créés avec pgTable + pgPolicy + enableRLS",
+        "Pattern tenantDB() + AsyncLocalStorage en place dans apps/api/src/db/index.ts",
+        "ADR documentant la stratégie RLS et les policies fines par rôle",
+        "Migration initiale générée via drizzle-kit generate et relue"
+      ],
+      "tags": ["drizzle", "multi-tenant", "rls"],
+      "status": "todo"
+    },
+    {
+      "id": "T003",
+      "title": "Module NestJS Auth avec Keycloak OIDC",
+      "description": "Mettre en place le Guard Keycloak, le décodage JWT et l'injection du school_id dans le contexte de requête.",
+      "phase": "Phase 1: Auth",
+      "priority": "P0 - Critical",
+      "category": "backend",
+      "estimated_days": 2,
+      "dependencies": ["T002"],
+      "acceptance_criteria": [
+        "Guard JWT fonctionnel contre Keycloak 24",
+        "school_id résolu via org claim",
+        "Tests unitaires + e2e sur /me"
+      ],
+      "tags": ["auth", "keycloak", "nestjs"],
+      "status": "todo"
+    },
+    {
+      "id": "T004",
+      "title": "Page de login web (Next.js 14)",
+      "description": "Écran de login avec redirection Keycloak, gestion du callback et stockage de session.",
+      "phase": "Phase 1: Auth",
+      "priority": "P0 - Critical",
+      "category": "frontend-web",
+      "estimated_days": 1,
+      "dependencies": ["T003"],
+      "acceptance_criteria": [
+        "Redirection Keycloak fonctionnelle",
+        "Callback gère succès et erreur",
+        "Test RTL du composant LoginButton"
+      ],
+      "tags": ["auth", "nextjs"],
+      "status": "todo"
+    }
+  ]
+}

@@ -34,6 +34,7 @@ Le scaffolder contient des **principes** et une **référence complète**, pas u
 - `skills/adr-template/SKILL.md`
 - `commands/run-sprint.md`
 - `agents/scrum-master.md`
+- `scrum/memory.md` — fichier vide avec structure initiale (4 sections par agent)
 
 **Skills méthodologiques** — toujours inclus, adaptés au langage cible :
 - `skills/tdd-workflow/SKILL.md` — adapter mocking, fixtures multi-tenant, conventions test au langage
@@ -87,6 +88,7 @@ Le scaffolder contient des **principes** et une **référence complète**, pas u
 5. **Evaluator adversarial** avec grep checks dans `code-reviewer`
 6. **Security reviewer** dédié en parallèle du code-reviewer
 7. **4 skills méthodologiques** toujours inclus (TDD, DDD, Clean Code, Clean Architecture)
+8. **Mémoire inter-sprints** : `scrum/memory.md` toujours inclus — alimenté par `scrum-master` à chaque clôture, lu par `backend-dev`, `frontend-dev`, `code-reviewer` avant chaque tâche
 
 ## Règles pour Claude
 

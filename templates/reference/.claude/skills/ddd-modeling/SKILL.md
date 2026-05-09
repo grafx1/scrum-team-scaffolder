@@ -5,130 +5,45 @@ description: Conventions Domain-Driven Design — découpage en bounded contexts
 
 # ddd-modeling
 
-## Pourquoi DDD
+## Phases
 
-DDD aide à nommer les choses correctement, découper proprement (un module = un bounded context = une responsabilité métier), protéger les invariants (un agrégat valide ses propres règles), et faire évoluer sans casser (les domain events découplent les modules).
+1. **Bounded contexts** — identifier les frontières métier, documenter dans un ADR, un module = un context
+2. **Ubiquitous language** — créer/mettre à jour `docs/glossary.md`, aligner code + tests + tâches sur ce vocabulaire
+3. **Agrégats** — identifier l'agrégat root, invariants dans le service, jamais dans le controller
+4. **Domain events** — émettre après écriture réussie, via queue system, payload = IDs uniquement
+5. **Value objects** — uniquement si validation non-triviale (ex: `Money`, `EmailAddress`) ; factory statique qui valide à la construction
 
-Ce skill impose le **vocabulaire** et les **patterns de découpage**, pas une implémentation DDD puriste (pas d'event sourcing obligatoire, pas de CQRS systématique).
+## Règles structurantes
 
-## Bounded contexts
+**Bounded context** : un module n'importe que les services exportés d'un autre module, jamais ses tables directement. Exception : vues SQL cross-context acceptables en lecture analytique uniquement.
 
-Chaque bounded context correspond à un **module backend** et à une zone de schéma DB. Un module ne doit importer que les **services exportés** d'un autre module, jamais ses tables directement.
+**Agrégat** : une transaction = un agrégat. Pour la cohérence cross-agrégat → domain event. Viser 1-3 tables par agrégat.
 
-**Exception** : les vues SQL cross-context sont acceptables pour les lectures analytiques (dashboard), mais toute **écriture** cross-context passe par un domain event.
-
-L'architect doit documenter les bounded contexts du projet dans un ADR dédié au démarrage.
-
-## Ubiquitous language (glossaire)
-
-Le code, les tests, les ADR, les tâches et les design briefs utilisent les mêmes termes. L'architect crée et maintient un glossaire dans `docs/glossary.md` dès le sprint 0.
-
-Format du glossaire :
-
-| Terme métier | Terme technique | À ne pas utiliser |
-|---|---|---|
-| <concept du domaine> | `<nom_code>` | ~~<alternatives confuses>~~ |
-
-**Règle** : si tu hésites sur un nom de table, variable, ou endpoint, vérifie le glossaire. Si le terme n'y est pas, propose-le dans un ADR ou dans le rapport de ton sprint.
-
-## Agrégat — règles de design
-
-Un **agrégat** est un groupe d'entités qui changent toujours ensemble et garantissent leurs propres invariants. L'agrégat root est la seule entité accessible de l'extérieur.
-
-### Règles strictes
-
-1. **Un agrégat = une transaction.** Jamais de transaction qui modifie deux agrégats différents. Pour la cohérence cross-agrégat, utiliser un domain event.
-2. **L'agrégat root est le point d'entrée.** Pour modifier une entité enfant, passer par le service de l'agrégat root.
-3. **Les invariants sont dans le service de l'agrégat, pas dans le controller.** Le controller valide le format, le service valide le métier.
-4. **Préférer les petits agrégats.** Viser 1-3 tables par agrégat. Un agrégat de 10 tables = mauvais découpage.
-
-## Value Objects
-
-Un value object est un objet sans identité propre, défini par ses attributs, immuable. Exemples génériques :
-
+**Domain event** — nommage `<Entity><PastParticiple>Event`, émission après commit, consommateur idempotent :
 ```typescript
-// domain/value-objects/money.ts
-export class Money {
-  private constructor(readonly amount: number, readonly currency: string) {}
-  static of(amount: number, currency: string): Money {
-    if (!Number.isInteger(amount) || amount < 0) throw new Error(`Invalid amount: ${amount}`);
-    return new Money(amount, currency);
-  }
-  add(other: Money): Money {
-    if (this.currency !== other.currency) throw new Error('Currency mismatch');
-    return new Money(this.amount + other.amount, this.currency);
-  }
-}
+// Émission (après insert réussi)
+await this.queue.add('order-placed', { tenantId, orderId: order.id });
 
-// domain/value-objects/email-address.ts
-export class EmailAddress {
-  private constructor(readonly value: string) {}
-  static from(raw: string): EmailAddress {
-    const normalized = raw.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) throw new Error(`Invalid email: ${raw}`);
-    return new EmailAddress(normalized);
-  }
-}
-```
-
-**Règle** : un value object a une factory statique qui valide à la construction. Ne pas sur-abstraire — `firstName: string` n'a pas besoin d'être un value object.
-
-## Domain Events
-
-Un domain event exprime un fait qui s'est produit dans un bounded context et qui intéresse d'autres contextes.
-
-### Conventions
-
-- Nommage : `<Entity><PastParticiple>Event` (ex : `OrderPlacedEvent`, `PaymentReceivedEvent`)
-- Émission **après** l'écriture réussie (pas avant)
-- Payload : les **ids** seulement, pas les entités entières
-- Transport via le queue system du projet (pas in-memory — survit aux restarts)
-- Le consommateur traite de manière **idempotente**
-
-```typescript
-// Émission
-async placeOrder(dto: PlaceOrderDto, tenantId: string) {
-  const order = await tenantDB(async (tx) => {
-    // ... insert order ...
-    return created;
-  });
-  await this.orderQueue.add('order-placed', { tenantId, orderId: order.id, placedAt: new Date() });
-  return order;
-}
-
-// Consommation dans un autre bounded context
+// Consommation dans un autre context
 @Process('order-placed')
-async handleOrderPlaced(job: Job<OrderPlacedPayload>) {
-  return tenantContext.run({ tenantId: job.data.tenantId, ... }, async () => {
-    // envoyer notification, mettre à jour stock, etc.
-  });
+async handle(job: Job<{ tenantId: string; orderId: string }>) {
+  return tenantContext.run({ tenantId: job.data.tenantId, ... }, async () => { /* ... */ });
 }
 ```
 
-## Anti-aggregate patterns (le code-reviewer rejette)
+## Anti-patterns
 
-1. **God aggregate** : un service qui importe 5 tables de 3 contextes → découper
-2. **Anemic domain model** : toute la logique dans le controller, le service ne fait que CRUD → déplacer les règles dans le service
-3. **Cross-context write** : le service A fait directement `tx.update(tableDeB)` → émettre un domain event
-4. **Validation dans le controller** : le controller fait des vérifications métier → déplacer dans le service
-5. **Over-engineering** : créer des value objects pour `firstName` ou un event pour chaque CRUD → pragmatisme
+- ❌ **God aggregate** — service qui importe 5 tables de 3 contextes différents
+- ❌ **Anemic model** — toute la logique dans le controller, service = CRUD pur
+- ❌ **Cross-context write** — `service A` fait `tx.update(tableDeB)` directement
+- ❌ **Validation métier dans le controller** — le controller valide le format, le service valide le métier
+- ❌ **Over-engineering** — value object pour `firstName`, domain event pour chaque CRUD
 
-## Checklists par agent
+## Checklist avant `in_review`
 
-### Architect
-- [ ] Bounded contexts identifiés et documentés (ADR)
-- [ ] Glossaire ubiquitous language dans `docs/glossary.md`
-- [ ] Agrégat root identifié pour chaque module complexe
-- [ ] Domain events cross-context listés (émetteur → consommateur)
-
-### Backend-dev
-- [ ] Invariants dans le service, pas le controller
-- [ ] Pas d'import de tables d'un autre bounded context
-- [ ] Domain events émis après écriture réussie, via le queue system
-- [ ] Glossaire respecté dans le nommage
-
-### Code-reviewer
-- [ ] Aucune transaction cross-agrégat
-- [ ] Aucun import cross-context de tables (seulement des services exportés)
-- [ ] Glossaire respecté dans les noms
-- [ ] Invariants dans les services, pas les controllers
+- [ ] Bounded contexts documentés dans un ADR (architect)
+- [ ] Glossaire `docs/glossary.md` à jour, termes respectés dans le code et les tests
+- [ ] Invariants métier dans le service, zéro règle métier dans le controller
+- [ ] Aucun import de table d'un autre bounded context (seulement les services exportés)
+- [ ] Domain events émis après écriture réussie, via queue, payload = IDs
+- [ ] Consommateurs de domain events idempotents

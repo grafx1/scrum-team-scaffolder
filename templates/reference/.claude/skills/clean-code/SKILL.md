@@ -5,96 +5,60 @@ description: Conventions Clean Code — nommage intentionnel, fonctions courtes,
 
 # clean-code
 
-## 1. Nommage
+## Règles non-négociables
 
-- **Les noms révèlent l'intention.** `getItemsByTenant` vs ~~`getData`~~
-- **Boolean** : `is`, `has`, `can`, `should` — `isActive`, `hasPermission`, `canEdit`
-- **Fonctions** : verbes — `createItem`, `sendNotification`, `validateInput`
-- **Classes/types** : noms — `Order`, `PaymentService`, `NotificationProcessor`
-- **Pas d'abréviations** sauf conventions universelles (`id`, `url`, `dto`, `tx`)
-- **Constantes** : `SCREAMING_SNAKE_CASE`
-- **Fichiers** : `kebab-case`
+**Nommage** : noms qui révèlent l'intention. Booléens : `is/has/can/should`. Fonctions : verbes. Classes : noms. Zéro abréviation cryptique. Constantes : `SCREAMING_SNAKE_CASE`. Fichiers : `kebab-case`.
 
-## 2. Fonctions
+**Fonctions** : une seule responsabilité. Maximum 20 lignes. Maximum 3 paramètres (au-delà → objet nommé). Pas de paramètre booléen. Early return plutôt que nesting.
 
-- **Une fonction fait UNE chose.** Si tu peux écrire "elle fait X **et** Y", c'est deux fonctions.
-- **Maximum 20 lignes** (hors imports et types). Au-delà, extraire.
-- **Maximum 3 paramètres.** Au-delà, regrouper dans un objet nommé.
-- **Pas de paramètres boolean** (flag arguments). Préférer deux fonctions explicites.
-- **Early return** plutôt que nesting profond :
-  ```
-  if (!entity) throw new NotFoundException();
-  if (!entity.isActive) throw new ForbiddenException();
-  return entity;
-  ```
+**Types** : zéro `any`. Zéro cast non justifié. Strict mode activé. Inférence plutôt qu'annotation redondante.
 
-## 3. Commentaires
+**Erreurs** : jamais de `catch` vide. Jamais de `console.log` — logger du framework. Erreurs métier = exceptions nommées.
 
-- **Autorisés** : `// WHY: <raison>`, `// TODO: <description> — <ticket>`, `// HACK: <explication>`, JSDoc sur interfaces publiques
-- **Interdits** : paraphrase du code, `// Added by <name> on <date>`, code commenté, séparateurs visuels
+**DRY** : règle de trois (extraire à la 3ème occurrence). DRY au niveau sémantique, pas textuel. Pas de `utils.ts` fourre-tout.
 
-## 4. Gestion d'erreurs
+**Fichiers** : une responsabilité par fichier. Maximum 200 lignes. Imports ordonnés : framework → tiers → internes → relatifs.
 
-- **Jamais de catch vide.** Log structuré ou rethrow avec contexte.
-- **Erreurs métier** = exceptions nommées (HttpException, custom Error subclass)
-- **Pas de string d'erreur dans les comparaisons** : utiliser `instanceof`
-- **Pas de `console.log`** — toujours le logger du framework avec contexte structuré
+## Do / Don't
 
-## 5. Types (langages typés)
+| Do | Don't |
+|---|---|
+| `getStudentsBySchool` | `getData`, `fetchStuff` |
+| `isActive`, `hasPermission` | `active`, `perm` |
+| `if (!entity) throw new NotFoundException()` | `if (entity) { if (entity.isActive) { ... } }` |
+| `// WHY: RLS fail-safe retourne NULL si pas de contexte` | `// get all students` |
+| `logger.error('create failed', { error, schoolId })` | `console.log(error)` |
 
-- **Zéro `any`** (TypeScript) / **zéro `type: ignore`** (Python)
-- **Zéro assertion de cast** non justifiée
-- **Strict mode** activé
-- **Inférence plutôt qu'annotation redondante**
-- **Unions discriminées** plutôt que type + cast
-
-## 6. DRY sans sur-abstraction
-
-- **Règle de trois** : duplication acceptable si 2 occurrences, extraire à la 3ème
-- **DRY au niveau logique, pas au niveau texte.** Deux fonctions avec le même if/else mais des sémantiques métier différentes ne doivent PAS être fusionnées.
-- **Pas de fichier utilitaire fourre-tout** (`utils/helpers.ts` de 500 lignes → découper par domaine)
-- **Schémas de validation partagés** via package commun, pas redéfinis dans chaque module
-
-## 7. Structure de fichier
-
-- **Un fichier = une responsabilité.** Controller + service + DTO dans le même fichier → 3 fichiers.
-- **Maximum 200 lignes par fichier.** Au-delà, découper.
-- **Imports ordonnés** : framework → tiers → internes absolus → relatifs
-
-## 8. Code mort
-
-- Pas de code commenté (git l'a en mémoire)
-- Pas de fonctions non-appelées
-- Pas de variables assignées jamais lues
-- Pas de fichiers orphelins (modules non-importés)
-
-## Grep checks du code-reviewer
+## Grep checks (code-reviewer)
 
 ```bash
 # Variables d'une lettre
-rg '\b(let|const|var)\s+[a-z]\s*=' <files> --glob '!*.spec.*' --glob '!*.test.*'
-
-# any (TypeScript)
-rg '\bany\b' <files> --glob '!*.d.ts' -c
-
-# console.log/error
-rg 'console\.(log|error|warn|info|debug)' <files> --glob '!*.spec.*' --glob '!*.test.*'
-
+rg '\b(let|const|var)\s+[a-z]\s*=' --glob '!*.spec.*' --glob '!*.test.*'
+# any TypeScript
+rg '\bany\b' --glob '!*.d.ts' -c
+# console.log
+rg 'console\.(log|error|warn|info|debug)' --glob '!*.spec.*' --glob '!*.test.*'
 # Code commenté
-rg '^\s*//\s*(const |let |var |import |export |return |if |for |while |await )' <files> --glob '!*.spec.*'
-
+rg '^\s*//\s*(const |let |var |import |return |if |for |await )' --glob '!*.spec.*'
 # TODO sans ticket
-rg 'TODO(?!:.*[A-Z]+-\d)' <files>
+rg 'TODO(?!:.*[A-Z]+-\d)'
 ```
+
+## Anti-patterns
+
+- ❌ Paramètre boolean dans une fonction — créer deux fonctions explicites
+- ❌ Catch vide ou `catch (e) { console.log(e) }` sans rethrow
+- ❌ Fichier `utils/helpers.ts` avec > 5 fonctions non liées
+- ❌ Type `any` ou `as unknown as X` sans commentaire `// HACK:`
+- ❌ Code commenté — git log conserve l'historique
+- ❌ Duplication à la 3ème occurrence sans extraction
 
 ## Checklist avant `in_review`
 
-- [ ] Nommage intentionnel, pas d'abréviations cryptiques
-- [ ] Fonctions ≤ 20 lignes, ≤ 3 params, une seule responsabilité
-- [ ] Commentaires WHY/TODO(ticket)/HACK uniquement, zéro code commenté
-- [ ] Erreurs : catch avec log ou rethrow, jamais vide
-- [ ] Types : zéro `any`, strict mode
-- [ ] DRY appliqué à la 3ème occurrence
-- [ ] Fichiers ≤ 200 lignes, imports ordonnés
-- [ ] Zéro code mort, zéro `console.log`
-- [ ] Lint + typecheck sans warnings
+- [ ] Nommage intentionnel, zéro abréviation cryptique
+- [ ] Fonctions ≤ 20 lignes, ≤ 3 params, une responsabilité
+- [ ] Zéro `any`, strict mode actif
+- [ ] Zéro `console.log`, zéro code commenté, zéro variable morte
+- [ ] Erreurs : catch avec log structuré ou rethrow, jamais vide
+- [ ] Grep checks passent sans résultat inattendu
+- [ ] `pnpm lint && pnpm typecheck` sans warnings

@@ -5,121 +5,53 @@ description: Conventions d'architecture en couches — séparation domain/applic
 
 # clean-architecture
 
-## 3 principes non-négociables
+## Phases
 
-1. **La logique métier ne dépend pas du framework.** Le service ne connaît pas HTTP, ni le queue system. Il reçoit des paramètres typés, applique des règles, retourne un résultat.
-2. **Les dépendances pointent vers l'intérieur.** Controller → Service → Domain → (rien). Jamais l'inverse.
-3. **L'infrastructure est interchangeable.** Changer d'ORM, de queue system, ou de provider externe ne modifie que la couche infra, pas les services métier.
+1. **Évaluer la complexité** — < 3 règles métier → controller + service suffit, pas de `domain/`. ≥ 3 règles → créer `domain/rules/`.
+2. **Placer la logique** — HTTP parsing dans le controller, orchestration dans le service, règles pures dans `domain/`.
+3. **Vérifier les dépendances** — Controller → Service → DB. Jamais l'inverse. Jamais cross-context sur les tables.
+4. **Vérifier l'interchangeabilité** — "si je change l'ORM, quels fichiers changent ?" → uniquement `db/`.
 
-## Architecture en couches
+## Règles de dépendance
 
-```
-┌─────────────────────────────────────────────────────┐
-│  Couche Infrastructure (Adapters)                   │
-│  Controllers / Webhooks / Processors / Cron         │
-├─────────────────────────────────────────────────────┤
-│  Couche Application (Use Cases / Services)          │
-│  Orchestration, coordination, transactions          │
-├─────────────────────────────────────────────────────┤
-│  Couche Domain (Entities / Value Objects / Rules)    │
-│  Logique métier pure, invariants                    │
-├─────────────────────────────────────────────────────┤
-│  Couche Infrastructure (Adapters)                   │
-│  ORM, Redis, Storage, APIs externes                 │
-└─────────────────────────────────────────────────────┘
-
-Sens des dépendances : de l'extérieur vers l'intérieur ↓↓↓
-```
-
-### Mapping sur la structure de fichiers
-
-```
-modules/<feature>/
-├── <feature>.controller.ts      ← Infrastructure (HTTP adapter)
-├── <feature>.service.ts         ← Application (orchestrateur)
-├── domain/                      ← Domain (si module complexe)
-│   ├── rules/                  (fonctions pures de validation)
-│   ├── value-objects/          (immuables, pas de dépendance framework)
-│   └── events/                 (classes de données pures)
-├── dto/                         ← Contrat d'entrée/sortie
-├── jobs/                        ← Infrastructure (queue adapter)
-└── __tests__/
-```
-
-**Pragmatisme** : le dossier `domain/` n'est obligatoire que pour les modules à logique métier complexe (≥ 3 règles métier). Les modules CRUD simples n'ont pas besoin de cette structuration.
-
-## Règle de dépendance
-
-### Autorisé
-
-- Controller importe Service
-- Service importe le wrapper DB (ex : `tenantDB`)
-- Service importe un Service d'un autre module (via export)
-- Processor importe Service pour déléguer la logique
-- Domain value object n'importe rien du framework
-
-### Interdit
-
-| Pattern interdit | Alternative |
+| Autorisé | Interdit |
 |---|---|
-| Service importe Controller | Le controller appelle le service |
-| Service importe les tables d'un **autre** bounded context | Appeler le service exporté de l'autre module |
-| Controller avec logique métier (if/else business) | Déplacer dans le service |
-| Domain entity importe le framework | Classes TypeScript/Python/Ruby pures |
-| Service fait directement `fetch('https://api.vendor.com')` | Déléguer au service d'intégration |
-| Job contient la logique métier | Le job appelle le service après avoir rejoué le contexte |
+| Controller importe Service | Service importe Controller |
+| Service importe `tenantDB` | Controller contient du `if/else` métier |
+| Service importe Service d'un autre module (via export) | Service importe tables d'un autre bounded context |
+| Processor délègue au Service | Job contient la logique métier |
+| Domain n'importe rien du framework | Domain entity dépend de NestJS / Express |
 
-## Test mental d'interchangeabilité
+**Ce qu'un service fait** : recevoir des DTO validés, ouvrir une transaction, appliquer les règles, persister, émettre des events, retourner.
 
-Pour vérifier la clean-ness : **"si je remplace l'ORM X par l'ORM Y, quels fichiers changent ?"**
+**Ce qu'un service ne fait pas** : parser des headers HTTP, formatter une réponse, appeler directement `fetch()` vers une API externe.
 
-| Couche | Change ? |
-|---|---|
-| Controllers | ❌ Non |
-| Services | ⚠️ Légèrement (l'API du wrapper DB change) |
-| Domain (rules, value objects, events) | ❌ Non |
-| DTOs | ❌ Non |
-| `db/` (schema, migrations, context) | ✅ Entièrement (c'est l'infra) |
-
-Si la réponse est "tout change" → l'architecture n'est pas clean.
-
-## Ce qu'un service fait / ne fait pas
-
-**Fait** : recevoir des DTO validés, ouvrir une transaction, appliquer les règles métier, persister, émettre des events, retourner le résultat.
-
-**Ne fait pas** : parser des headers HTTP, formater une réponse HTTP, connaître le framework web, appeler directement une API externe, logger avec des détails HTTP.
-
-## Quand ne PAS appliquer
-
-- Modules CRUD simples (< 3 règles métier) : controller + service + table. Pas de `domain/`.
-- Scripts one-shot (seed, migration manuelle) : code procédural direct.
-- Endpoints de health check, métriques : pas de logique métier.
-
-**Signal pour ajouter la structure clean** : quand un module a > 3 règles métier ou > 2 intégrations externes → créer `domain/`.
-
-## Grep checks du code-reviewer
+## Grep checks (code-reviewer)
 
 ```bash
-# Controller qui contient des règles métier
+# Règles métier dans le controller
 rg 'throw new Bad(Request|Conflict)Exception' <controllers> | grep -v 'validation'
-
-# Service qui importe des tables d'un autre bounded context
-rg "from '.*modules/(?!$(basename $MODULE))" <service_files> | grep -v 'Service'
-
-# Domain qui dépend du framework
-rg "@nestjs|from 'express'|from 'fastapi'" modules/*/domain/
-
-# Service qui fait du fetch direct
-rg "fetch\(|axios\.|this\.http\." <service_files> | grep -v 'integration'
+# Import cross-context de tables (pas de services)
+rg "from '.*modules/(?!<current>)" <service_files> | grep -v 'Service'
+# Domain dépendant du framework
+rg "@nestjs|from 'express'" modules/*/domain/
+# Fetch direct dans un service
+rg "fetch\(|axios\.\|this\.http\." <service_files> | grep -v 'integration'
 ```
 
-## Checklist code-reviewer
+## Anti-patterns
 
-- [ ] Controller = adapteur HTTP pur (parsing, appel service, retour réponse)
-- [ ] Service ne connaît pas HTTP (pas de `@Req()`, pas de `Response`)
-- [ ] Règles métier complexes dans `domain/rules/` (fonctions pures)
-- [ ] Imports cross-bounded-context passent par les services exportés, jamais les tables
+- ❌ Controller avec `if/else` métier — déplacer dans le service
+- ❌ Service qui importe `@Req()` ou `Response` de NestJS
+- ❌ Service qui appelle `fetch()` directement — déléguer au service d'intégration
+- ❌ `domain/` créé pour un module CRUD sans règle métier — sur-ingénierie
+- ❌ Job processor avec logique propre — le job appelle le service après `tenantContext.run()`
+
+## Checklist avant `in_review`
+
+- [ ] Controller = adapteur HTTP pur (parsing + appel service + retour)
+- [ ] Service sans référence à HTTP (`@Req`, `Response`, headers)
+- [ ] Règles métier complexes dans `domain/rules/` si module ≥ 3 règles
+- [ ] Imports cross-bounded-context via services exportés uniquement
 - [ ] APIs externes dans des services d'intégration dédiés
-- [ ] Jobs délèguent au service, pas de logique propre
-- [ ] Si module complexe → `domain/` existe
-- [ ] Si module CRUD simple → absence de `domain/` acceptée
+- [ ] Grep checks passent sans résultat inattendu

@@ -3,11 +3,18 @@ name: nestjs-module
 description: Structure standard d'un module NestJS pour le backend du projet — contrôleur, service Drizzle, DTO zod, guard Keycloak, processor Bull, tests. À utiliser systématiquement quand un agent (backend-dev, architect) crée un nouveau module métier, un controller, un service, un DTO ou un job async. Garantit la cohérence entre tous les modules du backend et l'usage correct de tenantDB().
 ---
 
-# Module NestJS standard
+# nestjs-module
 
-Tout nouveau module backend suit cette structure. C'est la convention du projet — ne pas s'en écarter sans justification dans un ADR.
+## Phases
 
-## 1. Arborescence
+1. **Arborescence** — créer les fichiers dans `apps/api/src/modules/<feature>/`
+2. **Module** — déclarer controller, service, Bull queue si async
+3. **Controller** — poser `@UseGuards(KeycloakGuard)`, `@CurrentTenant()`, `ZodValidationPipe`, `IdempotencyInterceptor` sur mutations
+4. **Service** — wrapper toutes les requêtes dans `tenantDB()`, passer `schoolId` dans `insert`
+5. **DTO** — générer via `createInsertSchema().omit({ schoolId: true })`, exporter vers `packages/api-contract`
+6. **Tests** — unit service + e2e controller + test d'isolation tenant (obligatoire)
+
+## Arborescence
 
 ```
 apps/api/src/modules/<feature>/
@@ -17,53 +24,19 @@ apps/api/src/modules/<feature>/
 ├── dto/
 │   ├── create-<entity>.dto.ts
 │   └── update-<entity>.dto.ts
-├── jobs/                   # handlers Bull Queue (processors)
+├── jobs/                        # uniquement si opération async
 └── __tests__/
     ├── <feature>.service.spec.ts
     └── <feature>.controller.e2e-spec.ts
 ```
 
-## 2. Module
+## Patterns de référence
 
+**Controller** :
 ```typescript
-// students.module.ts
-import { Module } from '@nestjs/common';
-import { BullModule } from '@nestjs/bull';
-import { StudentsController } from './students.controller';
-import { StudentsService } from './students.service';
-import { StudentsSyncProcessor } from './jobs/students-sync.processor';
-
-@Module({
-  imports: [BullModule.registerQueue({ name: 'students-sync' })],
-  controllers: [StudentsController],
-  providers: [StudentsService, StudentsSyncProcessor],
-  exports: [StudentsService],
-})
-export class StudentsModule {}
-```
-
-## 3. Controller
-
-```typescript
-// students.controller.ts
-import { Controller, Get, Post, Body, Headers, UseGuards, UseInterceptors } from '@nestjs/common';
-import { KeycloakGuard } from '../auth/keycloak.guard';
-import { CurrentTenant } from '../auth/current-tenant.decorator';
-import { IdempotencyInterceptor } from '../common/idempotency.interceptor';
-import { ZodValidationPipe } from '../common/zod-validation.pipe';
-import { StudentsService } from './students.service';
-import { createStudentSchema, type CreateStudentDto } from './dto/create-student.dto';
-
 @Controller('students')
 @UseGuards(KeycloakGuard)
 export class StudentsController {
-  constructor(private readonly service: StudentsService) {}
-
-  @Get()
-  list() {
-    return this.service.findAll();
-  }
-
   @Post()
   @UseInterceptors(IdempotencyInterceptor)
   create(
@@ -76,147 +49,49 @@ export class StudentsController {
 }
 ```
 
-**Règles** :
-- `@UseGuards(KeycloakGuard)` au niveau controller, **jamais** oublié.
-- Le `schoolId` vient TOUJOURS de `@CurrentTenant()` (décorateur qui lit l'`AsyncLocalStorage` `tenantContext`), **jamais** d'un param ou du body.
-- Le service lit lui aussi le tenant depuis le contexte via `tenantDB()` — le `schoolId` passé en argument ici est pour l'insert (champ requis dans le INSERT).
-- Les mutations exposées à un client offline utilisent `IdempotencyInterceptor` + header `idempotency-key` (voir skill `sync-queue-offline`).
-
-## 4. Service — Drizzle via `tenantDB()`
-
+**Service** :
 ```typescript
-// students.service.ts
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { tenantDB } from '../../db';
-import { students } from '../../db/schema/students';
-import { eq } from 'drizzle-orm';
-import type { CreateStudentDto } from './dto/create-student.dto';
-
-@Injectable()
-export class StudentsService {
-  findAll() {
-    return tenantDB(async (tx) =>
-      tx.select().from(students).orderBy(students.lastName),
-    );
-  }
-
-  async findOne(id: string) {
-    return tenantDB(async (tx) => {
-      const [row] = await tx.select().from(students).where(eq(students.id, id));
-      if (!row) throw new NotFoundException();
-      return row;
-    });
-  }
-
-  async create(dto: CreateStudentDto, schoolId: string, idempotencyKey: string) {
-    return tenantDB(async (tx) => {
-      const [row] = await tx
-        .insert(students)
-        .values({ ...dto, schoolId })
-        .returning();
-      return row;
-    });
-  }
+async create(dto: CreateStudentDto, schoolId: string, idempotencyKey: string) {
+  return tenantDB(async (tx) => {
+    const [row] = await tx.insert(students).values({ ...dto, schoolId }).returning();
+    return row;
+  });
 }
 ```
 
-**Règles** :
-- **Toute** requête est wrappée dans `tenantDB(async (tx) => ...)`. Jamais d'import de `db` directement dans un service métier.
-- `schoolId` passé explicitement dans le `values` de l'INSERT (WITH CHECK RLS l'exige).
-- Pas besoin d'ajouter `where(eq(students.schoolId, ctx.schoolId))` aux SELECT — la policy RLS le fait automatiquement grâce à `SET LOCAL app.current_school_id`.
-- Jamais de `any`. Les types viennent de l'inférence Drizzle.
-- Voir skill `drizzle-schema` pour le pattern complet `tenantDB`.
-
-## 5. DTO avec `drizzle-zod`
-
+**DTO** :
 ```typescript
-// dto/create-student.dto.ts
-import { createInsertSchema } from 'drizzle-zod';
-import { students } from '../../../db/schema/students';
-import { z } from 'zod';
-
 export const createStudentSchema = createInsertSchema(students, {
   firstName: (s) => s.min(1).max(100),
-  lastName: (s) => s.min(1).max(100),
 }).omit({ id: true, schoolId: true, createdAt: true, updatedAt: true });
-
 export type CreateStudentDto = z.infer<typeof createStudentSchema>;
 ```
 
-- `omit({ schoolId: true })` est **obligatoire** — le tenant vient du JWT, pas du client.
-- Le schéma zod est **aussi** exporté vers `packages/api-contract` pour être réutilisé côté frontend (react-hook-form + `zodResolver`).
-
-## 6. Job Bull Queue (si async)
-
+**Job Bull** — contexte tenant obligatoire dans le processor :
 ```typescript
-// jobs/students-sync.processor.ts
-import { Processor, Process } from '@nestjs/bull';
-import { Job } from 'bull';
-import { tenantContext } from '../../../db';
-
-type NotifyPayload = {
-  schoolId: string;
-  userId: string;
-  role: 'parent';
-  studentId: string;
-  message: string;
-};
-
-@Processor('students-sync')
-export class StudentsSyncProcessor {
-  @Process('notify-parent')
-  async notifyParent(job: Job<NotifyPayload>) {
-    const { schoolId, userId, role, studentId, message } = job.data;
-    // Rejouer le contexte tenant dans le worker — obligatoire
-    return tenantContext.run({ schoolId, userId, role }, async () => {
-      // logique métier, ici le service utilise tenantDB() normalement
-    });
-  }
+@Process('notify-parent')
+async notifyParent(job: Job<{ schoolId: string; userId: string; role: string }>) {
+  const { schoolId, userId, role } = job.data;
+  return tenantContext.run({ schoolId, userId, role }, async () => { /* ... */ });
 }
 ```
 
-**Règles jobs** : voir skill `bull-redis-job`.
-- `attempts: 3`, `backoff: { type: 'exponential', delay: 2000 }`
-- `removeOnComplete: true`, `removeOnFail: 100`
-- Idempotence obligatoire — clé dans le payload
-- Contexte tenant rejoué dans `tenantContext.run()` dans le handler
+## Anti-patterns
 
-## 7. Tests (obligatoires)
+- ❌ `schoolId` pris du body ou d'un param URL — doit venir de `@CurrentTenant()` uniquement
+- ❌ Requête DB sans `tenantDB()` — retourne 0 ligne silencieusement (RLS fail-safe)
+- ❌ `@UseGuards(KeycloakGuard)` oublié — endpoint public par défaut
+- ❌ `schoolId` exposé dans le DTO client — faille d'injection de tenant
+- ❌ Job Bull sans replay du `tenantContext.run()` dans le processor
+- ❌ `adminDB()` dans un flow utilisateur — bypass RLS, rejet automatique en review
 
-**Unitaire (service)** :
-```typescript
-// __tests__/students.service.spec.ts
-describe('StudentsService', () => {
-  it('crée un student avec le bon schoolId', async () => { /* ... */ });
-  it('findAll retourne uniquement les students du tenant courant', async () => { /* ... */ });
-});
-```
+## Checklist avant `in_review`
 
-**E2E (controller)** avec vraie Postgres :
-```typescript
-// __tests__/students.controller.e2e-spec.ts
-describe('POST /students', () => {
-  it('401 sans JWT', async () => { /* ... */ });
-  it('201 avec JWT valide et idempotency-key', async () => { /* ... */ });
-  it('renvoie la même réponse si idempotency-key réutilisée', async () => { /* ... */ });
-  it('isole strictement entre deux schools', async () => {
-    // Créer un student dans school A
-    // Changer le JWT pour school B
-    // GET /students → ne doit pas voir le student de A
-  });
-});
-```
-
-Le test d'isolation tenant est **obligatoire** pour toute table tenant (cf `drizzle-schema` et `postgres-rls`).
-
-## 8. Checklist avant `in_review`
-
-- [ ] Controller protégé par `KeycloakGuard`
-- [ ] `schoolId` vient de `@CurrentTenant()`, jamais du client
-- [ ] Toutes les requêtes DB wrappées dans `tenantDB()`
-- [ ] DTO zod avec `createInsertSchema` + `.omit({ schoolId: true })`
-- [ ] Schéma zod exporté vers `packages/api-contract`
-- [ ] Endpoints de mutation supportent `Idempotency-Key`
-- [ ] Jobs Bull avec `attempts`, `backoff`, `removeOnComplete`, contexte tenant rejoué
-- [ ] Tests unitaires + e2e + test d'isolation tenant présents
+- [ ] Controller avec `@UseGuards(KeycloakGuard)` au niveau classe
+- [ ] `schoolId` vient de `@CurrentTenant()`, absent du DTO
+- [ ] Toutes requêtes DB dans `tenantDB(async (tx) => ...)`
+- [ ] DTO via `createInsertSchema().omit({ schoolId: true })` exporté vers `api-contract`
+- [ ] Mutations avec `IdempotencyInterceptor` + header `idempotency-key`
+- [ ] Jobs Bull : `attempts: 3`, backoff exponentiel, `tenantContext.run()` dans le processor
+- [ ] Tests : unit service + e2e controller + isolation 2 schools présents
 - [ ] `pnpm lint && pnpm test && pnpm build` passent

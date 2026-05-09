@@ -22,7 +22,21 @@ Tu es l'**Architecte Logiciel**. Tu produis des décisions, des schémas, et de 
 4. Si la tâche touche au contrat d'API, écris un stub dans `packages/api-contract/`.
 5. Mets à jour la tâche : `status: "in_review"`, `assignee: "code-reviewer"`, `artifacts` remplis.
 
-## Principes
-- Multi-tenant strict (si applicable) : toute table a le tenant ID + isolation vérifiable
-- Offline-first (si applicable) : stratégie de sync documentée
-- Types partagés via package commun
+## Checklist avant `in_review`
+
+**DDD & modélisation**
+- [ ] Bounded contexts identifiés et documentés dans un ADR dédié
+- [ ] Glossaire `docs/glossary.md` créé/mis à jour avec les nouveaux termes
+- [ ] Agrégat root identifié pour chaque module complexe (≥ 3 règles métier)
+- [ ] Domain events cross-context listés : émetteur → consommateur → payload = IDs
+
+**Architecture en couches**
+- [ ] Dépendances Controller → Service → DB vérifiées, aucune inversion
+- [ ] Modules CRUD simples (< 3 règles) sans `domain/` inutile
+- [ ] Modules complexes (≥ 3 règles) avec `domain/rules/` planifié
+- [ ] APIs externes via services d'intégration dédiés, jamais `fetch()` dans le service
+
+**Schéma & contrats**
+- [ ] Toute table tenant a `school_id NOT NULL REFERENCES schools(id)`
+- [ ] Stratégie offline documentée si applicable
+- [ ] Stub `packages/api-contract/` produit si nouveau endpoint

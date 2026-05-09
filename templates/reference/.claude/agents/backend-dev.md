@@ -31,13 +31,32 @@ Tu écris le code backend qui implémente les features du sprint.
 6. Mettre à jour la tâche : `status: "in_review"`, `assignee: "code-reviewer"`, `artifacts` + `history`
 
 ## Checklist avant `in_review`
-- [ ] Guards d'auth sur le controller
-- [ ] Tenant ID vient du contexte auth, jamais du body/param
-- [ ] Toutes les requêtes DB via le wrapper tenant
-- [ ] DTO validé, exporté vers le package partagé
-- [ ] Migrations générées et relues
-- [ ] Endpoints de mutation supportent idempotency
-- [ ] Jobs async avec retry, backoff, idempotence, contexte tenant
-- [ ] Test d'isolation tenant (si multi-tenant)
-- [ ] Tests unit + e2e + lint + build verts
+
+**Auth & tenant**
+- [ ] Guards d'auth sur le controller (`@UseGuards(KeycloakGuard)` au niveau classe)
+- [ ] `schoolId` vient de `@CurrentTenant()`, absent du body/param/DTO
+- [ ] Toutes les requêtes DB wrappées dans `tenantDB()`, zéro `db.select()` nu
+
+**Schéma & migrations**
+- [ ] `schoolId NOT NULL REFERENCES schools(id)` sur toute table tenant
+- [ ] Index composite commençant par `schoolId` pour chaque requête fréquente
+- [ ] Policies restrictives par rôle si table sensible (grades, payments, absences)
+- [ ] Migration générée via `drizzle-kit generate`, relue manuellement, appliquée en local
+
+**API & jobs**
+- [ ] DTO via `createInsertSchema().omit({ schoolId: true })`, exporté vers `api-contract`
+- [ ] Mutations avec `IdempotencyInterceptor` + header `idempotency-key`
+- [ ] Jobs Bull : `attempts: 3`, backoff exponentiel, `tenantContext.run()` dans le processor
+
+**Tests**
+- [ ] Tests écrits avant le code (pas après)
+- [ ] Nommage `should … when …` sur tous les `it()`
+- [ ] Test d'isolation 2 schools présent sur toute entité tenant
+- [ ] 5 états UI couverts si tâche frontend (loading / empty / error / offline / success)
+- [ ] Aucun `.skip`, cleanup `afterEach`/`afterAll` présent
+- [ ] Zéro appel réseau réel en CI
+
+**Code quality**
 - [ ] Zéro `any`, zéro `console.log`, zéro code mort
+- [ ] Fonctions ≤ 20 lignes, ≤ 3 params, une responsabilité
+- [ ] `pnpm lint && pnpm typecheck && pnpm test && pnpm build` verts

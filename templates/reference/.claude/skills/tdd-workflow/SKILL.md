@@ -5,84 +5,64 @@ description: Workflow Test-Driven Development — cycle Red/Green/Refactor, écr
 
 # tdd-workflow
 
-## Principe fondamental
+## Phases
 
-**On écrit le test qui échoue AVANT d'écrire le code qui le fait passer.** Le cycle :
+1. **Red** — écrire un test qui échoue décrivant le comportement attendu via l'interface publique
+2. **Green** — écrire le minimum de code pour que le test passe, rien de plus
+3. **Refactor** — éliminer la duplication, tous les tests restent verts
+4. **Répéter** — un comportement à la fois, jamais deux tests en attente simultanément
 
-1. **Red** — écrire un test qui échoue (le test exprime le comportement attendu)
-2. **Green** — écrire le **minimum** de code pour que le test passe
-3. **Refactor** — nettoyer sans changer le comportement (tous les tests restent verts)
-4. Répéter
+## Structure par couche
 
-## Structure de test par couche
-
-### Backend
-
-| Couche | Ce qu'on teste | DB | Auth | Quand l'écrire |
-|---|---|---|---|---|
-| **Unit** | Logique métier du service en isolation | Mockée | Mockée | Chaque méthode publique du service |
-| **Integration** | Service + vraie DB | Vraie DB | Mockée | Chaque nouvelle table ou policy |
-| **E2E** | HTTP → Controller → Service → DB → réponse | Vraie DB | Token de test | Chaque endpoint |
-| **Isolation** | Tenant A ne voit pas les données de tenant B | Vraie DB | 2 tokens distincts | Chaque nouvelle entité tenant (obligatoire si multi-tenant) |
-
-### Frontend
-
-| Couche | Ce qu'on teste | API | Quand l'écrire |
+| Couche | Ce qu'on teste | DB | Quand |
 |---|---|---|---|
-| **Unit** | Rendu, interactions, états (loading/empty/error/offline/success) | Mockée | Chaque composant avec logique |
-| **Integration** | Composant + data fetching + mutations | Mockée (msw) | Chaque page ou flow |
+| **Unit** | Logique métier du service | Mockée | Chaque méthode publique |
+| **Integration** | Service + vraie DB | Réelle | Chaque nouvelle table ou policy |
+| **E2E** | HTTP → Controller → DB | Réelle | Chaque endpoint |
+| **Isolation** | Tenant A invisible de Tenant B | Réelle | Chaque entité tenant (obligatoire) |
 
-## Conventions de nommage
+Frontend : Unit (rendu + états) et Integration (composant + msw) uniquement.
 
-```
-describe('<Service>.<method>', () => {
-  it('should <comportement> when <condition>', async () => { ... });
+## Convention de nommage
+
+```typescript
+describe('StudentsService.create', () => {
+  it('should return created student when dto is valid', async () => { ... });
 });
 ```
 
-- `describe` = classe + méthode
-- `it` = `should` + comportement
-- Un `it` = un seul assert (ou groupe cohérent)
-- Toujours `it()`, jamais `test()`
+`describe` = classe + méthode. `it` = `should <comportement> when <condition>`. Toujours `it()`, jamais `test()`.
 
-## Fixtures multi-tenant (si applicable)
+## Fixture multi-tenant (copier tel quel)
 
 ```typescript
-export const TENANT_A = { tenantId: 'uuid-a', userId: 'uuid-user-a', role: 'admin' };
-export const TENANT_B = { tenantId: 'uuid-b', userId: 'uuid-user-b', role: 'admin' };
+export const TENANT_A = { schoolId: 'uuid-a', userId: 'uuid-user-a', role: 'director' as const };
+export const TENANT_B = { schoolId: 'uuid-b', userId: 'uuid-user-b', role: 'director' as const };
+export const runAs = <T>(t: typeof TENANT_A, fn: () => Promise<T>) => tenantContext.run(t, fn);
 
-export function runAsTenant<T>(tenant: typeof TENANT_A, fn: () => Promise<T>) {
-  return tenantContext.run(tenant, fn);
-}
-```
-
-**Test d'isolation obligatoire** :
-```typescript
-it('should not return tenant A entities when querying as tenant B', async () => {
-  const created = await runAsTenant(TENANT_A, () => service.create({ name: 'Test' }, TENANT_A.tenantId));
-  const fromB = await runAsTenant(TENANT_B, () => service.findAll());
+it('should not expose tenant A data to tenant B', async () => {
+  const created = await runAs(TENANT_A, () => service.create(dto, TENANT_A.schoolId));
+  const fromB = await runAs(TENANT_B, () => service.findAll());
   expect(fromB.find((e) => e.id === created.id)).toBeUndefined();
 });
 ```
 
-## Indicateurs de mauvais tests (rejetés par le code-reviewer)
+## Anti-patterns
 
-- `expect(true).toBe(true)` — test vide
-- `expect(result).toBeDefined()` seul — ne vérifie rien
-- Test qui mock tout et ne teste que des mocks
-- Test qui appelle une méthode privée
-- Nom sans comportement ("should work", "test 1")
-- Dépendance inter-tests (ordre d'exécution)
-- Test flaky, test sans cleanup
-- 0 test d'isolation sur une entité tenant (si multi-tenant)
+- ❌ `expect(true).toBe(true)` — test vide
+- ❌ `expect(result).toBeDefined()` seul — ne vérifie rien de métier
+- ❌ Mock de tous les collaborateurs internes — on teste des mocks, pas du code
+- ❌ Appel de méthode privée — signe que l'interface publique est mal conçue
+- ❌ Nom sans comportement — `"should work"`, `"test 1"`, `"creates student"`
+- ❌ 0 test d'isolation sur une entité tenant — rejet automatique en review
 
 ## Checklist avant `in_review`
 
-- [ ] Tests écrits avant le code (pas après)
-- [ ] Au moins 1 test par acceptance_criterion
-- [ ] Nommage `should ... when ...`
-- [ ] Test d'isolation tenant si entité multi-tenant
-- [ ] 5 états frontend si tâche frontend
-- [ ] Mock des APIs externes (jamais d'appel réseau en CI)
-- [ ] Suite complète verte, zéro skip
-- [ ] Cleanup propre (afterEach / afterAll)
+- [ ] Tests écrits avant le code
+- [ ] 1 test par acceptance_criterion minimum
+- [ ] Nommage `should … when …` sur tous les `it()`
+- [ ] Test d'isolation 2 tenants présent si entité multi-tenant
+- [ ] 5 états UI couverts si tâche frontend (loading / empty / error / offline / success)
+- [ ] Aucun appel réseau réel en CI (mocks ou msw)
+- [ ] Suite complète verte, zéro `.skip`
+- [ ] `afterEach` / `afterAll` cleanup présent

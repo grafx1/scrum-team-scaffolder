@@ -6,39 +6,24 @@ type: skill
 
 # postgres-rls
 
-## Objectif
+## Phases
 
-Produire des migrations SQL robustes garantissant l'isolation multi-tenant au niveau base (défense en profondeur indépendante du code applicatif).
+1. **Schéma TS** — définir `pgTable` + `pgPolicy` + `.enableRLS()` dans `drizzle-schema` (source de vérité)
+2. **Générer** — `pnpm drizzle-kit generate --name <slug>`, relire le SQL produit
+3. **Vérifier** — `ENABLE RLS` + `FORCE RLS` + toutes les policies + index sur `school_id` présents
+4. **Trigger** — ajouter `set_updated_at()` manuellement si Drizzle ne le génère pas
+5. **Appliquer** — `pnpm drizzle-kit migrate` en local
+6. **Tester** — test d'isolation 2 schools dans `__tests__/<feature>.controller.e2e-spec.ts`
 
-## Quand l'utiliser
-
-- Nouvelle table tenant à créer
-- Ajout d'une colonne ou d'un index
-- Nouvelles policies RLS à écrire ou modifier
-- Vue analytique pré-construite (`student_payment_summary`, etc.)
-
-## Stack de référence
-
-- **PostgreSQL 15**
-- **Drizzle ORM** comme source de vérité du schéma (voir skill `drizzle-schema`). Les policies RLS sont **déclarées directement dans `pgTable()`** via `pgPolicy()` — elles apparaissent automatiquement dans les migrations générées par `drizzle-kit generate`.
-- Extensions : `pgcrypto` (UUID), `pg_trgm` (recherche)
-- Session variables posées par `tenantDB()` dans la transaction : `app.current_school_id`, `app.current_user_id`, `app.current_role`
-- 5 rôles Keycloak : `super_admin`, `director`, `teacher`, `parent`, `student`
-
-Ce skill décrit le SQL de référence que Drizzle doit produire. Si Drizzle ne génère pas une policy exotique dont tu as besoin (ex: recursive CTE), tu peux écrire la migration manuellement en SQL dans `apps/api/src/db/migrations/` — elle sera appliquée par `drizzle-kit migrate` comme n'importe quelle autre.
-
-## Template de table tenant
+## Template SQL de référence
 
 ```sql
 CREATE TABLE <table> (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  school_id uuid NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+  id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  school_id   uuid        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
   -- colonnes métier
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  -- pour les entités offline-first uniquement
-  _sync_status text CHECK (_sync_status IN ('pending','synced','conflict')),
-  _updated_at bigint
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE INDEX idx_<table>_school ON <table>(school_id);
@@ -46,8 +31,9 @@ CREATE INDEX idx_<table>_school ON <table>(school_id);
 ALTER TABLE <table> ENABLE ROW LEVEL SECURITY;
 ALTER TABLE <table> FORCE ROW LEVEL SECURITY;
 
+-- Policy permissive : isolation tenant de base
 CREATE POLICY tenant_isolation ON <table>
-  USING (school_id = current_setting('app.current_school_id', true)::uuid)
+  USING      (school_id = current_setting('app.current_school_id', true)::uuid)
   WITH CHECK (school_id = current_setting('app.current_school_id', true)::uuid);
 
 CREATE TRIGGER trg_<table>_updated_at
@@ -55,35 +41,26 @@ CREATE TRIGGER trg_<table>_updated_at
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 ```
 
-## Policies fines par rôle
+Pour tables sensibles (`grades`, `absences`, `payments`, `bulletins`), ajouter policies **restrictives** par rôle :
+- `parent` : `student_id IN (SELECT student_id FROM student_parents WHERE parent_user_id = current_setting('app.current_user_id', true)::uuid)`
+- `teacher` : `EXISTS (SELECT 1 FROM class_subjects WHERE teacher_id = current_setting('app.current_user_id', true)::uuid AND ...)`
+- `director` / `super_admin` : policy permissive de base suffit
 
-Pour les tables sensibles (`grades`, `absences`, `payments`, `bulletins`), ajouter des policies additionnelles :
+## Anti-patterns
 
-- **Parent** : ne voit que les lignes de ses propres enfants (`WHERE student_id IN (SELECT student_id FROM student_parents WHERE parent_user_id = current_setting('app.current_user_id')::uuid)`)
-- **Teacher** : ne voit que les classes où il enseigne (`class_subjects.teacher_id = current_user`)
-- **Director** : voit tout l'établissement (policy tenant basique suffit)
-- **Student** : lecture seule sur ses propres données
+- ❌ `FORCE ROW LEVEL SECURITY` absent — le owner de la table bypasse les policies
+- ❌ `WITH CHECK` absent — UPDATE peut réécrire `school_id` vers un autre tenant
+- ❌ `current_setting('app.current_school_id')` sans `, true` — erreur si variable non posée
+- ❌ Index manquant sur `school_id` — RLS ajoute un `WHERE school_id = ?` à chaque requête
+- ❌ FK cross-tenant — vérifier que la FK pointe sur une entité du même `school_id`
+- ❌ Éditer une migration déjà appliquée — créer une nouvelle migration
 
-## Workflow
+## Checklist avant `in_review`
 
-1. **Définir la table dans `apps/api/src/db/schema/<n>.ts`** en suivant le skill `drizzle-schema` : `pgTable` + colonnes + index + `pgPolicy('tenant_isolation', ...)` + policies restrictives par rôle si pertinent + `.enableRLS()`
-2. **Générer la migration** : `pnpm drizzle-kit generate --name <slug>` — le fichier SQL apparaît dans `apps/api/src/db/migrations/` avec `CREATE TABLE`, `ENABLE RLS`, `FORCE RLS`, `CREATE POLICY ...` tirés du schéma TS
-3. **Relire la migration** manuellement : vérifier que toutes les policies attendues sont présentes, que les index sont là, que `FORCE` est bien émis
-4. **Ajouter le trigger `set_updated_at`** manuellement dans le SQL si besoin (Drizzle ne gère pas les triggers nativement en 2026) — ou utiliser `$onUpdate(() => new Date())` dans la colonne Drizzle comme alternative applicative
-5. **Appliquer** : `pnpm drizzle-kit migrate`
-6. **Tester l'isolation** : insérer une ligne avec `school_id = A` via `tenantDB` contexte A, changer le contexte vers B, lancer le même SELECT, vérifier 0 ligne visible. Ce test est dans `__tests__/<feature>.controller.e2e-spec.ts`.
-
-Pour une policy exotique que Drizzle ne sait pas exprimer (ex : recursive CTE pour une hiérarchie parent-enfant complexe), écris une migration SQL manuelle dans le même dossier `migrations/` — `drizzle-kit` les applique dans l'ordre alphabétique avec les siennes.
-
-## Pièges à éviter
-
-- **Oublier `FORCE ROW LEVEL SECURITY`** : sans ça, le owner de la table bypasse les policies
-- Oublier le `WITH CHECK` : les UPDATE peuvent réécrire `school_id` vers un autre tenant
-- Index manquant sur `school_id` : performance catastrophique
-- `current_setting('app.current_school_id')` sans le `, true` : erreur si la variable n'existe pas
-- Pas de policy → RLS activé bloque tout
-- FK cross-tenant : toujours vérifier que la FK pointe sur une table du même tenant
-
-## Livrable
-
-Fichier SQL dans `apps/api/src/db/migrations/<timestamp>_<slug>.sql` (généré par `drizzle-kit generate`), relu manuellement, appliqué en local et staging, et couvert par un test d'isolation 2 schools dans les tests e2e du module concerné.
+- [ ] `ENABLE RLS` + `FORCE RLS` présents dans la migration
+- [ ] `tenant_isolation` avec `USING` + `WITH CHECK`
+- [ ] Index composite `(school_id, ...)` pour chaque requête fréquente
+- [ ] Policies restrictives par rôle si table sensible
+- [ ] Trigger `set_updated_at` présent
+- [ ] Migration relue manuellement, appliquée en local
+- [ ] Test d'isolation 2 schools présent dans les e2e

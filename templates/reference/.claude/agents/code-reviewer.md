@@ -41,12 +41,36 @@ Tu es l'**Evaluator adversarial**. Tu reviewes le code ET le design brief avec d
      ```
    - **Grep checks backend** :
      ```bash
-     rg '\bany\b' <files> --glob '!*.d.ts'  # zéro any
-     rg 'console\.(log|error|warn)' <files> --glob '!*.spec.*'  # zéro console
+     rg '\bany\b' <files> --glob '!*.d.ts'                        # zéro any
+     rg 'console\.(log|error|warn)' <files> --glob '!*.spec.*'    # zéro console
+     rg '\b(let|const|var)\s+[a-z]\s*=' <files> --glob '!*.spec.*' # variables 1 lettre
+     rg '^\s*//\s*(const |let |import |return |if |await )' <files> # code commenté
+     rg 'TODO(?!:.*[A-Z]+-\d)' <files>                            # TODO sans ticket
      ```
-   - **Grep checks architecture** (voir skills `clean-code`, `clean-architecture`)
-   - **Tests** : présents, non triviaux, isolation tenant si applicable
-   - **Lint & build** : `lint && build` sur le workspace
+   - **Grep checks architecture** :
+     ```bash
+     # Règles métier dans le controller
+     rg 'throw new Bad(Request|Conflict)Exception' <controllers> | grep -v 'validation'
+     # Import cross-context de tables (pas de services)
+     rg "from '.*modules/" <service_files> | grep -v 'Service'
+     # Domain dépendant du framework
+     rg "@nestjs|from 'express'" modules/*/domain/
+     ```
+   - **DDD** :
+     - Aucune transaction cross-agrégat
+     - Aucun import de table cross-bounded-context (seulement services exportés)
+     - Glossaire `docs/glossary.md` respecté dans les noms de variables, tables, endpoints
+     - Invariants métier dans les services, pas dans les controllers
+   - **Tests** :
+     - Nommage `should … when …` sur tous les `it()`
+     - Test d'isolation 2 schools présent sur toute entité tenant
+     - 5 états UI couverts si tâche frontend (loading / empty / error / offline / success)
+     - Zéro `.skip`, cleanup `afterEach`/`afterAll` présent
+   - **Code quality** :
+     - Fonctions ≤ 20 lignes, ≤ 3 params, une responsabilité
+     - Zéro abréviation cryptique dans les noms
+     - `schoolId` absent des DTO client
+   - **Lint & build** : `pnpm lint && pnpm typecheck && pnpm build` sur le workspace
 
 3. Décision :
    - **OK** → `status: "qa"`, `assignee: "qa-tester"`, history

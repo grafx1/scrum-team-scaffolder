@@ -229,6 +229,17 @@ claude
 
 L'orchestrateur boucle : lead-dev assigne → devs implémentent → reviewers reviewent (qualité + sécurité en parallèle) → qa teste → scrum-master clôture.
 
+### Fenêtres de contexte fraîches
+
+Chaque agent est invoqué dans un **subagent indépendant avec fenêtre de contexte fraîche**. L'orchestrateur construit le contexte minimal avant chaque invocation :
+
+1. Lit la section `## Skills à consulter` de la définition de l'agent
+2. Charge le contenu de chaque skill listé
+3. Charge le sprint file actif complet
+4. Charge la section `scrum/memory.md` de l'agent
+
+L'agent reçoit exactement ce dont il a besoin — rien de plus. Ce pattern (inspiré de [GSD](https://github.com/gsd-build/get-shit-done)) élimine le *context rot* : la dégradation silencieuse de la qualité lorsque la fenêtre de contexte se sature au fil des itérations d'un sprint long.
+
 ---
 
 ## Personnalisation du bundle généré
@@ -272,7 +283,7 @@ scrum-team-scaffolder/
 
 ---
 
-## Les 8 invariants
+## Les 9 invariants
 
 Tout bundle généré respecte ces règles sans exception :
 
@@ -284,6 +295,7 @@ Tout bundle généré respecte ces règles sans exception :
 6. **4 skills méthodologiques** — TDD, DDD, Clean Code, Clean Architecture toujours inclus
 7. **Skills concis** — ≤ 150 lignes, format phases + anti-patterns + checklists
 8. **Mémoire inter-sprints** — `scrum/memory.md` toujours inclus, alimenté par `scrum-master` à chaque clôture
+9. **Fenêtres de contexte fraîches** — chaque agent est un subagent isolé, contexte minimal injecté par l'orchestrateur
 
 ---
 
@@ -300,5 +312,6 @@ Tout bundle généré respecte ces règles sans exception :
 
 | Version | Date | Contenu |
 |---|---|---|
-| v0.2 | 2026-05 | Restructuration des skills (≤ 150 lignes, phases + anti-patterns + checklists). Checklists migrées vers les agents. Mémoire inter-sprints (`scrum/memory.md`). 8 invariants. |
+| v0.3 | 2026-05 | Fenêtres de contexte fraîches par agent (anti-context-rot). Règle de concision dans les 8 agents. 9 invariants. |
+| v0.2 | 2026-05 | Restructuration des skills (≤ 150 lignes, phases + anti-patterns + checklists). Checklists migrées vers les agents. Mémoire inter-sprints (`scrum/memory.md`). TDD non-négociable. 8 invariants. |
 | v0.1 | 2026-04 | Version initiale. 1 référence. 8 agents (dont security-reviewer). 19 skills (dont 4 méthodologiques : TDD, DDD, Clean Code, Clean Architecture). |

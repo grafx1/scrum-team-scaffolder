@@ -53,7 +53,7 @@ Le scaffolder contient des **principes** et une **référence complète**, pas u
 
 **3.3 — Intégrations** : hub + `references/<vendor>.md` si des intégrations sont listées.
 
-**3.4 — Agents customisés** : `lead-dev`, `architect`, `backend-dev`, `frontend-dev`, `code-reviewer`, `security-reviewer`, `qa-tester` — adapter les sections "Skills à consulter" et "Stack" aux noms des skills générés.
+**3.4 — Agents customisés** : `lead-dev`, `architect`, `backend-dev`, `frontend-dev`, `code-reviewer`, `security-reviewer`, `qa-tester` — adapter les sections "Skills à consulter" et "Stack" aux noms des skills générés. Chaque agent inclut la règle de concision (fenêtre fraîche isolée).
 
 **3.5 — `tasks.json`** squelette de 8-12 tâches cohérentes avec la stack.
 
@@ -89,6 +89,8 @@ Le scaffolder contient des **principes** et une **référence complète**, pas u
 6. **Security reviewer** dédié en parallèle du code-reviewer
 7. **4 skills méthodologiques** toujours inclus (TDD, DDD, Clean Code, Clean Architecture)
 8. **Mémoire inter-sprints** : `scrum/memory.md` toujours inclus — alimenté par `scrum-master` à chaque clôture, lu par `backend-dev`, `frontend-dev`, `code-reviewer` avant chaque tâche
+9. **Fenêtres de contexte fraîches** : chaque agent est un subagent isolé — `run-sprint` injecte contexte minimal (tâche + skills de l'agent + sprint file + section mémoire), les agents opèrent sans narration
+10. **TDD non-négociable** : aucune ligne d'implémentation sans test rouge d'abord — `backend-dev` et `frontend-dev`, rejet sans review sinon
 
 ## Règles pour Claude
 
@@ -100,3 +102,6 @@ Le scaffolder contient des **principes** et une **référence complète**, pas u
 - **Toujours 8 agents** — les 7 standards + `security-reviewer`
 - **Toujours adapter le glossaire DDD** au domaine du projet, pas à un domaine exemple
 - **Préserver la structure** des skills de référence lors de l'adaptation
+- **Skills ≤ 150 lignes** — format phases + anti-patterns + checklists, zéro théorie narrative
+- **TDD non-négociable** dans `backend-dev` et `frontend-dev` — libellé exact : "impératif et non-négociable, rejet sans review si tests écrits après le code"
+- **Règle de concision** dans chaque agent — libellé exact : "Tu opères dans une fenêtre de contexte fraîche et isolée. Sois concis, agis sur ta mission uniquement, ne produis pas de narration."

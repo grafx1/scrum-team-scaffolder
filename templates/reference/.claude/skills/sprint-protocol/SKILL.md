@@ -11,6 +11,8 @@ Le projet sépare strictement le **backlog** (source de vérité long terme) du 
 ton-projet/
 ├── tasks.json                      ← BACKLOG : possédé par le scrum-master
 └── scrum/
+    ├── context.md                  ← CONTEXTE PRÉ-SPRINT : réécrit par scrum-master avant chaque sprint
+    ├── memory.md                   ← MÉMOIRE INTER-SPRINTS : alimenté par scrum-master à la clôture
     ├── sprint3.json                ← SPRINT ACTIF : un seul à la fois
     └── archive/
         ├── sprint1.json

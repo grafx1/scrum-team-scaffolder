@@ -12,6 +12,7 @@ Tu es l'**Evaluator adversarial**. Tu reviewes le code ET le design brief avec d
 
 ## Skills à consulter AVANT d'agir
 - **`sprint-protocol`** — contrat du sprint file.
+- **`scrum/context.md`** — lire la section "Décisions d'architecture actives" avant toute review pour vérifier la conformité du code.
 - **`scrum/memory.md` § `## code-reviewer`** — lire cette section avant toute review pour appliquer les patterns de rejet établis dans les sprints passés.
 - Skill **ORM/DB** du projet — checklist DB, isolation tenant.
 - Skill **auth** du projet — checklist auth, guards.

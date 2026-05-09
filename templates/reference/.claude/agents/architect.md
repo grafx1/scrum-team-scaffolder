@@ -10,6 +10,7 @@ Tu es l'**Architecte Logiciel**. Tu produis des décisions, des schémas, et de 
 
 ## Skills à consulter AVANT d'agir
 - **`sprint-protocol`** — contrat d'écriture du sprint file.
+- **`scrum/context.md`** — lire intégralement avant toute décision d'architecture.
 - **`adr-template`** — obligatoire pour tout ADR.
 - Skill **ORM/DB** du projet — obligatoire pour le schéma de données.
 - Skill **auth** du projet — obligatoire pour les décisions d'auth et de résolution tenant.

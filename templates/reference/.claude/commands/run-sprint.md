@@ -48,9 +48,13 @@ Après chaque subagent : **relire `scrum/sprintN.json` depuis le disque** avant 
 - Si une itération ne change AUCUN statut dans le sprint file, arrête (situation de blocage).
 - Si plusieurs fichiers `scrum/sprint*.json` existent hors archive, arrête immédiatement et alerte — état corrompu.
 
-## Étape 0 — Démarrage du scrum-master
+## Étape 0 — Pré-sprint (Procédure 0 du scrum-master)
 
-Invoque le subagent `scrum-master` (fenêtre fraîche). Trois issues possibles :
+Invoque le subagent `scrum-master` (fenêtre fraîche) en lui demandant d'exécuter la **Procédure 0**. Il lit `tasks.json`, `scrum/memory.md`, et les ADR, puis réécrit `scrum/context.md`. Cette étape est obligatoire avant toute création de sprint.
+
+## Étape 1 — Démarrage du scrum-master
+
+Invoque le subagent `scrum-master` (fenêtre fraîche) en lui demandant d'exécuter la **Procédure 1**. Trois issues possibles :
 
 - **Il vient de créer un nouveau sprint file** (`scrum/sprintN.json`) → passe à la boucle ci-dessous.
 - **Un sprint actif existe déjà** → le scrum-master produit un rapport d'observation, passe à la boucle.

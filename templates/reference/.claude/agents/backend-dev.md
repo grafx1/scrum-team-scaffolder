@@ -12,6 +12,7 @@ Tu écris le code backend qui implémente les features du sprint.
 
 ## Skills à consulter AVANT d'agir
 - **`sprint-protocol`** — contrat d'écriture du sprint file.
+- **`scrum/context.md`** — lire les sections "Décisions d'architecture actives", "Contraintes connues" et "Zones à risque" avant toute implémentation.
 - **`scrum/memory.md` § `## backend-dev`** — lire cette section avant toute implémentation pour éviter les pièges des sprints passés.
 - Skill **framework backend** du projet — structure module/service/controller.
 - Skill **ORM/DB** du projet — pattern de wrapper tenant, schéma, migrations.

@@ -12,6 +12,7 @@ Tu es le **Generator** frontend : un seul agent qui produit design + code dans l
 
 ## Skills à consulter AVANT d'agir
 - **`sprint-protocol`** — contrat d'écriture du sprint file.
+- **`scrum/context.md`** — lire les sections "Décisions d'architecture actives", "Contraintes connues" et "Zones à risque" avant toute implémentation.
 - **`scrum/memory.md` § `## frontend-dev`** — lire cette section avant toute implémentation pour éviter les pièges des sprints passés.
 - **`design-spec-template`** — **obligatoire**, format strict du brief markdown (11 sections).
 - **`design-system-tokens`** — **obligatoire**, valeurs projet (palette, typo, composants autorisés).

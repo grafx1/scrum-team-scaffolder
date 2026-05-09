@@ -101,6 +101,7 @@ Claude suit un workflow en 4 phases et produit le bundle complet.
 │
 ├── scrum/
 │   ├── memory.md               # Mémoire inter-sprints (alimentée par scrum-master)
+│   ├── context.md              # Contexte pré-sprint (réécrit par scrum-master avant chaque sprint)
 │   └── archive/
 ├── tasks.json                  # Backlog initial (8-12 tâches)
 ├── README.md
@@ -131,7 +132,8 @@ Claude résout quels skills et agents générer d'après les règles de `referen
 4. **Hub d'intégrations** + references par vendor
 5. **8 agents** avec refs de skills adaptées
 6. **`scrum/memory.md`** — fichier de mémoire inter-sprints vide avec structure initiale
-7. **Fichiers racine** : `tasks.json`, `README.md`, `CHANGELOG.md`
+7. **`scrum/context.md`** — fichier de contexte pré-sprint vide avec 4 sections fixes
+8. **Fichiers racine** : `tasks.json`, `README.md`, `CHANGELOG.md`
 
 ### Phase 4 — Validation et rapport
 
@@ -200,6 +202,25 @@ Le bundle sépare le backlog pérenne (`tasks.json`, propriété du scrum-master
 | `[BLOQUÉ]` | Raison de blocage non résolue |
 
 Le fichier est structuré par agent (`## backend-dev`, `## frontend-dev`, `## code-reviewer`, `## architect`). Chaque agent lit uniquement sa section avant d'agir. Limite : 10 entrées par section (FIFO).
+
+### Contexte pré-sprint
+
+`scrum/context.md` capture l'état de connaissance de l'équipe avant chaque sprint. Le scrum-master le réécrit intégralement lors de la **Procédure 0** (Étape 0 du `/run-sprint`), depuis trois sources :
+
+- `scrum/memory.md` — apprentissages des sprints passés
+- `docs/adr/` — décisions d'architecture actives
+- `tasks.json` — dépendances non résolues dans le backlog
+
+Le fichier contient 4 sections fixes :
+
+| Section | Lue par |
+|---|---|
+| `## Décisions d'architecture actives` | architect, backend-dev, frontend-dev, code-reviewer |
+| `## Contraintes connues` | backend-dev, frontend-dev |
+| `## Zones à risque` | backend-dev, frontend-dev |
+| `## Dépendances non résolues` | lead-dev |
+
+Chaque agent lit **uniquement la section pertinente à son rôle** avant d'agir. Ce pattern (inspiré du CONTEXT.md de [GSD](https://github.com/gsd-build/get-shit-done)) aligne l'équipe sur les décisions prises sans polluer le contexte des agents avec des informations non pertinentes.
 
 ### Machine à états
 
@@ -283,7 +304,7 @@ scrum-team-scaffolder/
 
 ---
 
-## Les 9 invariants
+## Les 11 invariants
 
 Tout bundle généré respecte ces règles sans exception :
 
@@ -296,6 +317,8 @@ Tout bundle généré respecte ces règles sans exception :
 7. **Skills concis** — ≤ 150 lignes, format phases + anti-patterns + checklists
 8. **Mémoire inter-sprints** — `scrum/memory.md` toujours inclus, alimenté par `scrum-master` à chaque clôture
 9. **Fenêtres de contexte fraîches** — chaque agent est un subagent isolé, contexte minimal injecté par l'orchestrateur
+10. **TDD non-négociable** — aucune ligne d'implémentation sans test rouge d'abord, veto du code-reviewer sinon
+11. **Contexte pré-sprint** — `scrum/context.md` réécrit par `scrum-master` avant chaque sprint, 5 agents lisent leurs sections pertinentes
 
 ---
 
@@ -312,6 +335,7 @@ Tout bundle généré respecte ces règles sans exception :
 
 | Version | Date | Contenu |
 |---|---|---|
+| v0.4 | 2026-05 | Contexte pré-sprint (`scrum/context.md` + Procédure 0 scrum-master). 5 agents lisent leurs sections pertinentes. 11 invariants. |
 | v0.3 | 2026-05 | Fenêtres de contexte fraîches par agent (anti-context-rot). Règle de concision dans les 8 agents. 9 invariants. |
 | v0.2 | 2026-05 | Restructuration des skills (≤ 150 lignes, phases + anti-patterns + checklists). Checklists migrées vers les agents. Mémoire inter-sprints (`scrum/memory.md`). TDD non-négociable. 8 invariants. |
 | v0.1 | 2026-04 | Version initiale. 1 référence. 8 agents (dont security-reviewer). 19 skills (dont 4 méthodologiques : TDD, DDD, Clean Code, Clean Architecture). |

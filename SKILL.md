@@ -35,6 +35,7 @@ Le scaffolder contient des **principes** et une **référence complète**, pas u
 - `commands/run-sprint.md`
 - `agents/scrum-master.md`
 - `scrum/memory.md` — fichier vide avec structure initiale (4 sections par agent)
+- `scrum/context.md` — fichier vide avec 4 sections fixes (réécrit par scrum-master avant chaque sprint)
 
 **Skills méthodologiques** — toujours inclus, adaptés au langage cible :
 - `skills/tdd-workflow/SKILL.md` — adapter mocking, fixtures multi-tenant, conventions test au langage
@@ -91,6 +92,7 @@ Le scaffolder contient des **principes** et une **référence complète**, pas u
 8. **Mémoire inter-sprints** : `scrum/memory.md` toujours inclus — alimenté par `scrum-master` à chaque clôture, lu par `backend-dev`, `frontend-dev`, `code-reviewer` avant chaque tâche
 9. **Fenêtres de contexte fraîches** : chaque agent est un subagent isolé — `run-sprint` injecte contexte minimal (tâche + skills de l'agent + sprint file + section mémoire), les agents opèrent sans narration
 10. **TDD non-négociable** : aucune ligne d'implémentation sans test rouge d'abord — `backend-dev` et `frontend-dev`, rejet sans review sinon
+11. **Contexte pré-sprint** : `scrum/context.md` toujours inclus — réécrit par `scrum-master` (Procédure 0) avant chaque sprint depuis `memory.md` + ADRs + `tasks.json`, lu par 5 agents selon leurs sections pertinentes
 
 ## Règles pour Claude
 
@@ -105,3 +107,5 @@ Le scaffolder contient des **principes** et une **référence complète**, pas u
 - **Skills ≤ 150 lignes** — format phases + anti-patterns + checklists, zéro théorie narrative
 - **TDD non-négociable** dans `backend-dev` et `frontend-dev` — libellé exact : "impératif et non-négociable, rejet sans review si tests écrits après le code"
 - **Règle de concision** dans chaque agent — libellé exact : "Tu opères dans une fenêtre de contexte fraîche et isolée. Sois concis, agis sur ta mission uniquement, ne produis pas de narration."
+- **Toujours inclure `scrum/context.md`** — fichier vide avec les 4 sections (`## Décisions d'architecture actives`, `## Contraintes connues`, `## Zones à risque`, `## Dépendances non résolues`)
+- **Procédure 0 dans `scrum-master`** — réécrit `scrum/context.md` avant chaque sprint (Étape 0 de `run-sprint`)

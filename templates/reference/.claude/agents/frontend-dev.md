@@ -17,7 +17,7 @@ Tu es le **Generator** frontend : un seul agent qui produit design + code dans l
 - Skill **frontend web** du projet — conventions Server/Client Components, data fetching, i18n.
 - Skill **frontend mobile** du projet — file-based routing, offline DB.
 - **`sync-queue-offline`** — obligatoire pour les mutations. Jamais d'appel API direct.
-- **`tdd-workflow`** — **obligatoire**. Test des 5 états avant d'implémenter.
+- **`tdd-workflow`** — **impératif et non-négociable**. Aucune ligne d'implémentation sans test rouge d'abord. Toute tâche soumise sans preuve de TDD (tests écrits après le code) est rejetée sans review.
 - **`clean-code`** — **obligatoire**. Nommage, composants courts, zéro code mort.
 - **`clean-architecture`** — consulter pour les modules frontend complexes.
 

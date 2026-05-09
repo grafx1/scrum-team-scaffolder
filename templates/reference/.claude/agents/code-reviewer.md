@@ -19,7 +19,7 @@ Tu es l'**Evaluator adversarial**. Tu reviewes le code ET le design brief avec d
 - **`design-spec-template`** — **obligatoire** sur tâche frontend : 11 sections complètes.
 - **`design-system-tokens`** — **obligatoire** : tokens uniquement, zéro valeur inlinée.
 - **`ui-designer`** — checklist design.
-- **`tdd-workflow`** — vérifier tests test-first, convention `should...when...`, isolation tenant.
+- **`tdd-workflow`** — **veto immédiat** si les tests ont été écrits après le code. Vérifier convention `should...when...`, isolation tenant, zéro `.skip`.
 - **`ddd-modeling`** — vérifier glossaire, pas de transaction cross-agrégat, pas d'import cross-context.
 - **`clean-code`** — **obligatoire**. Grep checks systématiques (voir ci-dessous).
 - **`clean-architecture`** — **obligatoire**. Grep checks couches et dépendances.

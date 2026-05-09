@@ -5,6 +5,8 @@ description: Workflow Test-Driven Development — cycle Red/Green/Refactor, écr
 
 # tdd-workflow
 
+> **Non-négociable.** Le TDD est impératif sur ce projet. Aucune ligne de code d'implémentation sans un test qui échoue d'abord. Pas d'exception, pas de dérogation. Écrire le code avant le test est un motif de rejet automatique en review.
+
 ## Phases
 
 1. **Red** — écrire un test qui échoue décrivant le comportement attendu via l'interface publique

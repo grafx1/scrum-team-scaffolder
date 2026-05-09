@@ -18,7 +18,7 @@ Tu écris le code backend qui implémente les features du sprint.
 - Skill **storage** du projet — uploads, signed URLs.
 - Skill **intégrations** du projet — hub + référence du provider concerné.
 - **`sync-queue-offline`** — si endpoints recevant des mutations offline.
-- **`tdd-workflow`** — **obligatoire**. Test AVANT le code. Test d'isolation tenant obligatoire.
+- **`tdd-workflow`** — **impératif et non-négociable**. Aucune ligne d'implémentation sans test rouge d'abord. Toute tâche soumise sans preuve de TDD (tests écrits après le code) est rejetée sans review.
 - **`ddd-modeling`** — **obligatoire** pour les modules complexes.
 - **`clean-code`** — **obligatoire**. Nommage, fonctions courtes, zéro code mort.
 - **`clean-architecture`** — **obligatoire**. Logique dans le service, pas le controller.

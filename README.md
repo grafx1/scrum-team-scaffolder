@@ -248,7 +248,30 @@ claude
 /run-sprint
 ```
 
-L'orchestrateur boucle : lead-dev assigne → devs implémentent → reviewers reviewent (qualité + sécurité en parallèle) → qa teste → scrum-master clôture.
+L'orchestrateur boucle en **4 waves** : lead-dev assigne → devs implémentent → reviewers reviewent (qualité + sécurité en parallèle) → qa teste → scrum-master clôture.
+
+### Vagues de parallélisme
+
+`/run-sprint` structure l'exécution en 4 waves avec barrière stricte entre chaque :
+
+| Wave | Agents | Mode |
+|---|---|---|
+| **Wave 1** | `lead-dev` | Séquentiel — doit finir avant d'assigner |
+| **Wave 2** | `architect`, `backend-dev`, `frontend-dev` | Parallèle, groupé par `dependencies` |
+| **Wave 3** | `code-reviewer` + `security-reviewer` | Parallèle — finding CRITIQUE prime |
+| **Wave 4** | `qa-tester` | Séquentiel |
+
+Dans la Wave 2, l'orchestrateur lit le champ `dependencies` de chaque tâche `in_progress` et regroupe celles sans dépendance mutuelle dans un même groupe parallèle. Les tâches dont une dépendance est encore `in_progress` attendent le groupe suivant.
+
+### Boucle de vérification
+
+Après chaque subagent, avant de passer à la suite, l'orchestrateur vérifie :
+
+1. Le JSON du sprint file est valide
+2. Le statut de la tâche a bien transitionné
+3. Une nouvelle entrée `history` a été ajoutée
+
+En cas d'échec : **log de l'anomalie → retry unique → `blocked` forcé** si le retry échoue. Les anomalies détectées apparaissent dans le rapport final. Ce mécanisme garantit que le sprint file reste cohérent même si un subagent échoue silencieusement.
 
 ### Fenêtres de contexte fraîches
 
@@ -304,7 +327,7 @@ scrum-team-scaffolder/
 
 ---
 
-## Les 11 invariants
+## Les 13 invariants
 
 Tout bundle généré respecte ces règles sans exception :
 
@@ -319,6 +342,8 @@ Tout bundle généré respecte ces règles sans exception :
 9. **Fenêtres de contexte fraîches** — chaque agent est un subagent isolé, contexte minimal injecté par l'orchestrateur
 10. **TDD non-négociable** — aucune ligne d'implémentation sans test rouge d'abord, veto du code-reviewer sinon
 11. **Contexte pré-sprint** — `scrum/context.md` réécrit par `scrum-master` avant chaque sprint, 5 agents lisent leurs sections pertinentes
+12. **Boucle de vérification** — après chaque subagent, JSON valide + statut transitionné + history ajoutée, sinon retry → blocked
+13. **Vagues de parallélisme** — 4 waves avec barrière stricte, Wave 2 groupée par `dependencies`
 
 ---
 
@@ -335,6 +360,7 @@ Tout bundle généré respecte ces règles sans exception :
 
 | Version | Date | Contenu |
 |---|---|---|
+| v0.5 | 2026-05 | Boucle de vérification post-subagent (retry → blocked). Vagues de parallélisme explicites (4 waves, groupement par dépendances). 13 invariants. |
 | v0.4 | 2026-05 | Contexte pré-sprint (`scrum/context.md` + Procédure 0 scrum-master). 5 agents lisent leurs sections pertinentes. 11 invariants. |
 | v0.3 | 2026-05 | Fenêtres de contexte fraîches par agent (anti-context-rot). Règle de concision dans les 8 agents. 9 invariants. |
 | v0.2 | 2026-05 | Restructuration des skills (≤ 150 lignes, phases + anti-patterns + checklists). Checklists migrées vers les agents. Mémoire inter-sprints (`scrum/memory.md`). TDD non-négociable. 8 invariants. |

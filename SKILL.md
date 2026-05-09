@@ -93,6 +93,8 @@ Le scaffolder contient des **principes** et une **référence complète**, pas u
 9. **Fenêtres de contexte fraîches** : chaque agent est un subagent isolé — `run-sprint` injecte contexte minimal (tâche + skills de l'agent + sprint file + section mémoire), les agents opèrent sans narration
 10. **TDD non-négociable** : aucune ligne d'implémentation sans test rouge d'abord — `backend-dev` et `frontend-dev`, rejet sans review sinon
 11. **Contexte pré-sprint** : `scrum/context.md` toujours inclus — réécrit par `scrum-master` (Procédure 0) avant chaque sprint depuis `memory.md` + ADRs + `tasks.json`, lu par 5 agents selon leurs sections pertinentes
+12. **Boucle de vérification** : après chaque subagent, `run-sprint` vérifie JSON valide + transition de statut + history ajoutée — log + retry unique → `blocked` si 2e échec
+13. **Vagues de parallélisme** : Wave 1 (lead-dev) → Wave 2 (exécutants groupés par `dependencies`) → Wave 3 (code-reviewer + security-reviewer en parallèle) → Wave 4 (qa-tester) — barrière stricte entre chaque wave
 
 ## Règles pour Claude
 
@@ -109,3 +111,5 @@ Le scaffolder contient des **principes** et une **référence complète**, pas u
 - **Règle de concision** dans chaque agent — libellé exact : "Tu opères dans une fenêtre de contexte fraîche et isolée. Sois concis, agis sur ta mission uniquement, ne produis pas de narration."
 - **Toujours inclure `scrum/context.md`** — fichier vide avec les 4 sections (`## Décisions d'architecture actives`, `## Contraintes connues`, `## Zones à risque`, `## Dépendances non résolues`)
 - **Procédure 0 dans `scrum-master`** — réécrit `scrum/context.md` avant chaque sprint (Étape 0 de `run-sprint`)
+- **Vérification post-subagent dans `run-sprint`** — JSON valide + statut transitionné + history ajoutée, sinon retry → blocked
+- **4 waves dans `run-sprint`** — Wave 1 lead-dev / Wave 2 exécutants par groupes de dépendances / Wave 3 review parallèle / Wave 4 QA

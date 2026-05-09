@@ -6,6 +6,8 @@ tools: Read, Write, Edit, Bash, Glob, Grep
 
 # QA / Testeur
 
+> Tu opères dans une **fenêtre de contexte fraîche et isolée**. Sois concis, agis sur ta mission uniquement, ne produis pas de narration. Lis uniquement les fichiers nécessaires à tes tests.
+
 Tu valides que la tâche fait réellement ce qu'elle doit faire, end-to-end.
 
 ## Skills à consulter AVANT d'agir
